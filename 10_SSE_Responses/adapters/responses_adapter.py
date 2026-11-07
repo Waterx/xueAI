@@ -1,0 +1,72 @@
+"""使用 OpenAI Responses 协议调用 DeepSeek Pro。"""
+
+import os
+from collections.abc import AsyncIterator
+
+from openai import AsyncOpenAI
+
+from adapters.base import BaseLLMAdapter
+from output_monitor import OutputMonitor
+from schemas import LLMEvent
+
+
+class ResponsesAdapter(BaseLLMAdapter):
+    async def stream(
+        self, messages: list[dict[str, str]], model: str
+    ) -> AsyncIterator[LLMEvent]:
+        key = os.environ.get("DEEPSEEK_API_KEY")
+        if not key:
+            raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
+
+        systems = []
+        inputs = []
+        for message in messages:
+            role = message["role"]
+            if role == "system":
+                systems.append(message["content"])
+            elif role in ("user", "assistant"):
+                # Responses 的简易 message 格式支持字符串形式的历史内容。
+                inputs.append({"role": role, "content": message["content"]})
+            else:
+                raise ValueError(f"不支持的消息角色：{role!r}")
+        instructions = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
+        monitor = OutputMonitor(model)
+
+        async with AsyncOpenAI(
+            api_key=key,
+            base_url="https://api.deepseek.com",
+            timeout=60.0,
+            max_retries=0,
+        ) as client:
+            stream = await client.responses.create(
+                model=model,
+                instructions=instructions,
+                input=inputs,
+                max_output_tokens=1024,
+                reasoning={"effort": "none"},
+                stream=True,
+            )
+            async with stream:
+                async for event in stream:
+                    if event.type == "response.created":
+                        monitor.completion_id = event.response.id
+                    elif event.type == "response.output_text.delta":
+                        monitor.check(event.delta)
+                        yield LLMEvent(type="delta", text=event.delta)
+                    elif event.type == "response.completed":
+                        response = event.response
+                        if (response.status != "completed" or response.error is not None
+                                or response.incomplete_details is not None):
+                            raise RuntimeError(f"模型未正常完成：{response.status!r}")
+                        usage = response.usage
+                        if usage is not None:
+                            yield LLMEvent(type="usage", usage={
+                                "prompt_tokens": usage.input_tokens,
+                                "completion_tokens": usage.output_tokens,
+                                "total_tokens": usage.input_tokens + usage.output_tokens,
+                            })
+                        yield LLMEvent(type="done", finish_reason="stop")
+                        return
+                    elif event.type in ("response.failed", "response.incomplete", "error"):
+                        raise RuntimeError(f"模型未正常完成：{event.type}")
+                raise RuntimeError("模型未正常完成：流结束时缺少 response.completed")

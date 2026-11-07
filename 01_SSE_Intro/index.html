@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>看得见的 SSE</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #101820;
+      color: #e5edf3;
+      font: 16px/1.7 system-ui, sans-serif;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: #a9bac8;
+    }
+
+    button {
+      padding: 10px 18px;
+      margin: 4px 8px 12px 0;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    #start {
+      background: #78e0b0;
+    }
+
+    #status {
+      color: #78e0b0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    pre {
+      background: #081017;
+      padding: 18px;
+      border: 1px solid #30414f;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 13px;
+    }
+
+    #log {
+      height: 360px;
+      overflow-y: auto;
+    }
+
+    #frame {
+      min-height: 220px;
+    }
+
+    small {
+      color: #a9bac8;
+    }
+
+    @media (max-width: 700px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <small>FASTAPI → HTTP 长连接 → EVENTSOURCE</small>
+    <h1>看得见的 SSE</h1>
+    <p>浏览器发起一次请求，服务器每秒推送一条消息。页面和开发者工具 Console 会实时打印。</p>
+    <button id="start">开始连接</button>
+    <button id="stop">停止连接</button>
+    <button id="clear">清空日志</button>
+    <span id="status" role="status">未连接</span>
+    <div class="grid">
+      <section>
+        <h2>实时日志</h2>
+        <pre id="log" role="log" aria-label="实时消息"></pre>
+      </section>
+
+      <section>
+        <h2>最新事件的协议格式</h2>
+        <pre id="frame">等待服务器推送…</pre>
+        <small>这里根据事件重建格式；原始响应可在 Network → events 中查看。每条事件最后有一个空行。</small>
+      </section>
+    </div>
+    <p><code>id</code>：重连位置 · <code>event</code>：事件名 · <code>data</code>：内容 · <code>retry</code>：重连间隔（毫秒）。</p>
+    <p>试试：保持连接，重启后端，观察自动重连及消息编号继续。这里的编号仅演示恢复位置，不提供历史消息补发。</p>
+  </main>
+
+  <script>
+    let source = null;
+
+    const log = document.querySelector('#log');
+    const status = document.querySelector('#status');
+    const frame = document.querySelector('#frame');
+
+    function print(message) {
+      console.log(message);
+
+      const lines = log.textContent.split('\n').filter(Boolean);
+      lines.push(`[${new Date().toLocaleTimeString()}] ${message}`);
+      log.textContent = lines.slice(-200).join('\n') + '\n';
+      log.scrollTop = log.scrollHeight;
+    }
+
+    document.querySelector('#start').onclick = () => {
+      if (source) {
+        return;
+      }
+
+      status.textContent = '正在连接…';
+
+      // 连接 /events；事件监听在本地注册，无需额外订阅请求。
+      source = new EventSource('/events');
+
+      source.onopen = () => {
+        status.textContent = '已连接';
+        print('连接建立');
+      };
+
+      // tick 对应后端 event 字段；省略该字段时监听 message。
+      source.addEventListener('tick', event => {
+        const data = JSON.parse(event.data);
+
+        print(`#${event.lastEventId} ${data.message} | ${data.time}`);
+
+        frame.textContent =
+          `id: ${event.lastEventId}\nevent: ${event.type}\ndata: ${event.data}\n\n`;
+      });
+
+      source.onerror = () => {
+        status.textContent = '连接中断，自动重连中…';
+        print('连接异常；浏览器会自动重试');
+      };
+    };
+
+    document.querySelector('#stop').onclick = () => {
+      if (!source) {
+        return;
+      }
+
+      // 主动关闭后不再自动重连。
+      source.close();
+      source = null;
+      status.textContent = '已停止';
+      print('主动关闭连接');
+    };
+
+    document.querySelector('#clear').onclick = () => {
+      log.textContent = '';
+    };
+
+    window.addEventListener('beforeunload', () => {
+      source?.close();
+    });
+  </script>
+</body>
+</html>
