@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>19 · DeepSeek 对话</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #101820;
+      color: #e5edf3;
+      font: 16px/1.7 system-ui, sans-serif;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+
+    p, small {
+      color: #a9bac8;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 16px;
+      border: 1px solid #30414f;
+      border-radius: 12px;
+      background: #081017;
+      color: inherit;
+      font: inherit;
+      resize: vertical;
+    }
+
+    button {
+      margin: 12px 8px 12px 0;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button[type="submit"] {
+      background: #78e0b0;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    pre, #conversation {
+      height: 380px;
+      overflow-y: auto;
+      padding: 18px;
+      border: 1px solid #30414f;
+      border-radius: 12px;
+      background: #081017;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 14px/1.8 monospace;
+    }
+
+    .message { margin-bottom: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .message strong { color: #78e0b0; }
+    .message p { margin: 4px 0; color: inherit; }
+    .message small { display: block; }
+
+    #chat-identity { overflow-wrap: anywhere; }
+    a { color: #78e0b0; }
+
+    @media (max-width: 700px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <small>19 / 指数退避重试</small>
+    <h1>DeepSeek 多轮对话</h1>
+    <a href="/observability" target="_blank" rel="noopener">在新标签页打开模型指标</a>
+    <p>每次发送完整的成功对话历史，让模型理解你的追问。密钥只在后端读取。</p>
+
+    <form id="chat-form">
+      <label for="model">模型</label>
+      <select id="model" name="model">
+        <option value="deepseek-flash">deepseek-flash</option>
+        <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+      </select>
+      <label for="stream-mode">调用方式</label>
+      <select id="stream-mode" name="stream">
+        <option value="true">流式（stream=true）</option>
+        <option value="false">非流式（stream=false）</option>
+      </select>
+      <p>流式逐步显示回答；非流式等待生成结束后一次显示。两个模型均支持两种方式。</p>
+      <br>
+      <label for="prompt">你的问题</label>
+      <textarea id="prompt" rows="3" maxlength="2000" required>请解释一下 SSE 为什么适合 AI 流式回答？</textarea>
+
+      <button id="send" type="submit">发送问题</button>
+      <button id="stop" type="button" disabled>停止生成</button>
+      <button id="reset" type="button">新对话</button>
+      <span id="status" role="status">等待提问</span>
+      <small id="chat-identity" hidden></small>
+    </form>
+
+    <div class="grid">
+      <section>
+        <h2>对话记录</h2>
+        <div id="conversation" role="log" aria-label="对话记录"></div>
+      </section>
+
+      <section>
+        <h2>请求与响应日志</h2>
+        <pre id="log" role="log" aria-label="事件日志"></pre>
+      </section>
+    </div>
+
+    <p>历史仅保存在当前页面内存，刷新或新对话后清空。最多 20 轮完整历史；停止或失败的本轮不进入上下文，不自动重试。</p>
+  </main>
+
+  <script>
+    const form = document.querySelector('#chat-form');
+    const prompt = document.querySelector('#prompt');
+    const send = document.querySelector('#send');
+    const stop = document.querySelector('#stop');
+    const status = document.querySelector('#status');
+    const conversation = document.querySelector('#conversation');
+    const reset = document.querySelector('#reset');
+    const model = document.querySelector('#model');
+    const streamMode = document.querySelector('#stream-mode');
+    const log = document.querySelector('#log');
+    const chatIdentity = document.querySelector('#chat-identity');
+    const metricsUpdates = 'BroadcastChannel' in window
+      ? new BroadcastChannel('chat-metrics-updates')
+      : null;
+
+    let controller = null;
+    let conversationId = null;
+    let history = [];
+    let answer = null;
+
+    function addMessage(role, text) {
+      const row = document.createElement('div');
+      row.className = 'message';
+      const label = document.createElement('strong');
+      label.textContent = role === 'user' ? '你' : '助手';
+      const content = document.createElement('p');
+      content.textContent = text;
+      row.append(label, content);
+      conversation.append(row);
+      conversation.scrollTop = conversation.scrollHeight;
+      return content;
+    }
+
+    function handleEvent(block) {
+      let name = 'message';
+      const data = [];
+
+      for (const line of block.split('\n')) {
+        if (line.startsWith(':')) continue;
+
+        const colon = line.indexOf(':');
+        const field = colon === -1 ? line : line.slice(0, colon);
+        const value = colon === -1 ? '' : line.slice(colon + 1).replace(/^ /, '');
+
+        if (field === 'event') name = value;
+        if (field === 'data') data.push(value);
+      }
+
+      if (!data.length) return null;
+
+      const payload = JSON.parse(data.join('\n'));
+      console.log(name, payload);
+      log.textContent += block + '\n\n';
+      log.scrollTop = log.scrollHeight;
+
+      if (name === 'start') {
+        status.textContent = `正在生成 · ${payload.model}…`;
+      } else if (name === 'delta') {
+        answer.textContent += payload.text;
+        conversation.scrollTop = conversation.scrollHeight;
+      } else if (name === 'done') {
+        status.textContent = '回答完成';
+      } else if (name === 'error') {
+        throw new Error(payload.message);
+      }
+
+      return name;
+    }
+
+    async function readSSE(response) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let sawDone = false;
+
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+
+          // 网络块不等于事件；本后端统一用 LF，按空行提取完整事件。
+          let boundary;
+          while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+            const block = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+
+            if (handleEvent(block) === 'done') sawDone = true;
+          }
+
+          if (done) {
+            if (!sawDone) throw new Error('连接提前结束，未收到 done 事件');
+            return;
+          }
+        }
+      } finally {
+        await reader.cancel();
+        reader.releaseLock();
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const question = prompt.value.trim();
+      const streaming = streamMode.value === 'true';
+      if (!question || controller) return;
+      if (history.length >= 40) {
+        status.textContent = '已达到 20 轮，请开始新对话';
+        return;
+      }
+
+      controller = new AbortController();
+      send.disabled = true;
+      stop.disabled = false;
+      reset.disabled = true;
+      prompt.disabled = true;
+      model.disabled = true;
+      streamMode.disabled = true;
+      addMessage('user', question);
+      answer = addMessage('assistant', '');
+      const requestBody = {
+        model: model.value,
+        stream: streaming,
+        messages: [...history, { role: 'user', content: question }],
+      };
+      if (conversationId) requestBody.conversation_id = conversationId;
+      chatIdentity.hidden = true;
+      log.textContent = 'POST /chat\n' + JSON.stringify(requestBody, null, 2) + '\n\n';
+      status.textContent = streaming ? '正在连接…' : '非流式生成中，请等待完整回答…';
+
+      try {
+        // fetch 支持 POST 请求体；SSE 响应由上面的读取器解析。
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+        conversationId = response.headers.get('X-Conversation-ID') ?? conversationId;
+        const requestId = response.headers.get('X-Request-ID');
+        if (requestId) {
+          chatIdentity.textContent = `会话 ID ${conversationId ?? '—'} · 请求 ID ${requestId}`;
+          chatIdentity.hidden = false;
+        }
+
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null);
+          log.textContent += `HTTP ${response.status}\n` + JSON.stringify(failure, null, 2);
+          throw new Error(failure?.error?.message ?? `请求失败：HTTP ${response.status}`);
+        }
+        if (streaming) {
+          if (!response.headers.get('content-type')?.includes('text/event-stream')) {
+            throw new Error('服务器未返回 SSE 响应');
+          }
+          await readSSE(response);
+        } else {
+          if (!response.headers.get('content-type')?.includes('application/json')) {
+            throw new Error('服务器未返回 JSON 响应');
+          }
+          const result = await response.json();
+          log.textContent += 'HTTP 200 · JSON\n' + JSON.stringify(result, null, 2);
+          log.scrollTop = log.scrollHeight;
+          if (typeof result.content !== 'string' || typeof result.finish_reason !== 'string') {
+            throw new Error('服务器返回的结果格式异常');
+          }
+          answer.textContent = result.content;
+          conversation.scrollTop = conversation.scrollHeight;
+          if (result.finish_reason === 'length') {
+            throw new Error('回答达到长度上限，内容已截断');
+          }
+        }
+        if (!answer.textContent.trim()) throw new Error('模型返回了空回答');
+        history.push({ role: 'user', content: question }, { role: 'assistant', content: answer.textContent });
+        prompt.value = '';
+        status.textContent = `回答完成 · ${streaming ? '流式' : '非流式'} · 第 ${history.length / 2} 轮`;
+      } catch (error) {
+        status.textContent = error.name === 'AbortError'
+          ? '已停止生成'
+          : `错误：${error.message}`;
+        const note = document.createElement('small');
+        note.textContent = '本轮未完成，不进入后续上下文。可重新发送输入框中的问题。';
+        answer.parentElement.append(note);
+      } finally {
+        controller = null;
+        send.disabled = false;
+        stop.disabled = true;
+        reset.disabled = false;
+        prompt.disabled = false;
+        model.disabled = false;
+        streamMode.disabled = false;
+        prompt.focus();
+        metricsUpdates?.postMessage('chat-completed');
+      }
+    });
+
+    stop.addEventListener('click', () => {
+      controller?.abort();
+    });
+
+    reset.addEventListener('click', () => {
+      if (controller) return;
+      history = [];
+      conversationId = null;
+      chatIdentity.hidden = true;
+      conversation.replaceChildren();
+      log.textContent = '';
+      prompt.value = '';
+      status.textContent = '已开始新对话';
+      prompt.focus();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      controller?.abort();
+    });
+  </script>
+</body>
+</html>
+
