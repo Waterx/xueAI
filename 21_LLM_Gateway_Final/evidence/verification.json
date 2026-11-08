@@ -1,0 +1,189 @@
+{
+  "verified_at_utc": "2026-11-08T04:05:02.336884+00:00",
+  "python": "3.13.3",
+  "dependencies": {
+    "fastapi": "0.162.0",
+    "uvicorn": "0.54.0",
+    "anthropic": "0.125.0",
+    "openai": "2.54.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.2",
+    "anyio": "4.16.0",
+    "jsonschema": "4.26.0",
+    "python-dotenv": "1.2.4"
+  },
+  "offline": {
+    "passed": true,
+    "tests_run": 133,
+    "tests_passed": 133,
+    "tests_failed_or_skipped": 0,
+    "groups": [
+      {
+        "name": "Model routing and contracts",
+        "passed": true,
+        "tests": 9
+      },
+      {
+        "name": "Non-streaming and unified errors",
+        "passed": true,
+        "tests": 14
+      },
+      {
+        "name": "SSE and protocol resource cleanup",
+        "passed": true,
+        "tests": 29
+      },
+      {
+        "name": "JSON Object",
+        "passed": true,
+        "tests": 6
+      },
+      {
+        "name": "JSON Schema",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Streaming JSON and cancellation",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Prompt template rendering",
+        "passed": true,
+        "tests": 5
+      },
+      {
+        "name": "Prompt version lookup",
+        "passed": true,
+        "tests": 6
+      },
+      {
+        "name": "Token usage and cache accounting",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Metrics, latency, TTFT and disconnect",
+        "passed": true,
+        "tests": 12
+      },
+      {
+        "name": "Exponential backoff retry",
+        "passed": true,
+        "tests": 12
+      },
+      {
+        "name": "Per-model rate limiting",
+        "passed": true,
+        "tests": 9
+      },
+      {
+        "name": "Output anomaly monitoring",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Legacy adapter regression",
+        "passed": true,
+        "tests": 15
+      }
+    ]
+  },
+  "live": {
+    "passed": true,
+    "checks": [
+      {
+        "model": "deepseek-flash",
+        "stream": false,
+        "passed": true,
+        "http_status": 200,
+        "request_id": "b1c87a0b-3c4d-4cfd-833c-9cf242af8c45",
+        "content": "OK",
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 21,
+          "output_tokens": 1,
+          "service_tier": "standard",
+          "prompt_tokens": 21,
+          "completion_tokens": 1,
+          "total_tokens": 22
+        },
+        "latency_ms": 892.1330419834703,
+        "ttft_ms": null
+      },
+      {
+        "model": "deepseek-flash",
+        "stream": true,
+        "passed": true,
+        "http_status": 200,
+        "request_id": "785ad0a4-d9d4-4180-a191-494523e1094f",
+        "events": [
+          "start",
+          "delta",
+          "delta",
+          "delta",
+          "delta",
+          "delta",
+          "usage",
+          "done"
+        ],
+        "content": "{\"ok\":true}",
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 87,
+          "output_tokens": 5,
+          "service_tier": "standard",
+          "prompt_tokens": 87,
+          "completion_tokens": 5,
+          "total_tokens": 92
+        },
+        "latency_ms": 684.505041979719,
+        "ttft_ms": 634.7285420051776
+      },
+      {
+        "model": "deepseek-v4-pro",
+        "stream": false,
+        "passed": true,
+        "http_status": 200,
+        "request_id": "638d1ae1-e959-4426-aaac-a32cf24087c4",
+        "content": "OK",
+        "usage": {
+          "prompt_tokens": 20,
+          "completion_tokens": 1,
+          "total_tokens": 21
+        },
+        "latency_ms": 817.9852089961059,
+        "ttft_ms": null
+      },
+      {
+        "model": "deepseek-v4-pro",
+        "stream": true,
+        "passed": true,
+        "http_status": 200,
+        "request_id": "7c17fd00-753c-4e38-81cb-064ab974a465",
+        "events": [
+          "start",
+          "delta",
+          "delta",
+          "delta",
+          "delta",
+          "delta",
+          "usage",
+          "done"
+        ],
+        "content": "{\"ok\":true}",
+        "usage": {
+          "prompt_tokens": 91,
+          "completion_tokens": 5,
+          "total_tokens": 96
+        },
+        "latency_ms": 1172.917084011715,
+        "ttft_ms": 1025.0583750312217
+      }
+    ],
+    "transport": "In-process ASGI gateway with real provider HTTPS; not a TCP streaming benchmark"
+  }
+}

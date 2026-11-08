@@ -1,0 +1,8 @@
+{
+  "probe": "Temporary copy with one intentionally failing unittest",
+  "tests_run": 134,
+  "tests_failed": 1,
+  "exit_code": 1,
+  "passed": true,
+  "note": "Injected test removed with temporary directory; not part of delivered 133 tests."
+}

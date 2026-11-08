@@ -1,0 +1,11 @@
+# Python 3.11+; final acceptance tested with Python 3.13.3.
+# Pin direct dependencies to the versions used for final acceptance.
+fastapi==0.162.0
+uvicorn==0.54.0
+openai==2.54.0
+anthropic==0.125.0
+pydantic==2.14.2
+httpx==0.28.1
+anyio==4.16.0
+jsonschema==4.26.0
+python-dotenv==1.2.4

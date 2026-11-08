@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>17 · 模型指标</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #101820;
+      color: #e5edf3;
+      font: 16px/1.7 system-ui, sans-serif;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+
+    p, small {
+      color: #a9bac8;
+    }
+
+    button {
+      margin: 12px 8px 12px 0;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button[type="submit"] {
+      background: #78e0b0;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    a { color: #78e0b0; }
+
+    .metrics {
+      margin-top: 20px;
+      padding: 16px;
+      border: 1px solid #30414f;
+      border-radius: 12px;
+      background: #081017;
+    }
+
+    .metrics h2 { margin: 0; }
+    .metrics-table { overflow-x: auto; }
+    .metrics table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .metrics th, .metrics td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #30414f;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .metrics th:first-child { text-align: left; }
+    .request-history { margin-top: 16px; }
+    .request-history summary { cursor: pointer; font-weight: 600; }
+    .request-history [data-status="error"] { color: #ff9d9d; }
+    .request-history [data-status="success"] { color: #78e0b0; }
+    .metric-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .metric-filters input { width: min(100%, 320px); padding: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/">返回聊天</a>
+    <h1>模型调用观测</h1>
+    <section class="metrics" aria-labelledby="metrics-heading">
+      <h2 id="metrics-heading">模型指标</h2>
+      <p>Token 仅累计已上报的用量。汇总为 0 也可能表示该项尚无上报数据。</p>
+      <form id="metric-filters" class="metric-filters">
+        <label for="filter-conversation-id">会话 ID</label>
+        <input id="filter-conversation-id" name="conversation_id" placeholder="输入 conversation_id">
+        <label for="filter-request-id">请求 ID</label>
+        <input id="filter-request-id" name="request_id" placeholder="输入 request_id">
+        <button type="submit">查询指标</button>
+        <button id="clear-metric-filters" type="button">清除筛选</button>
+      </form>
+      <small id="metrics-status" role="status">正在加载指标…</small>
+      <div class="metrics-table">
+        <table id="metrics-table" aria-labelledby="metrics-heading" hidden>
+          <thead>
+            <tr>
+              <th scope="col">模型</th>
+              <th scope="col">请求</th>
+              <th scope="col">成功</th>
+              <th scope="col">失败</th>
+              <th scope="col">取消</th>
+              <th scope="col">输入 Token</th>
+              <th scope="col">输出 Token</th>
+              <th scope="col">总 Token</th>
+              <th scope="col">平均延迟</th>
+              <th scope="col">平均 TTFT</th>
+            </tr>
+          </thead>
+          <tbody id="metrics-body"></tbody>
+        </table>
+      </div>
+      <details class="request-history" open>
+        <summary id="request-history-heading">请求明细</summary>
+        <small id="request-history-status" role="status">正在加载请求明细…</small>
+        <div class="metrics-table">
+          <table id="request-history-table" aria-labelledby="request-history-heading" hidden>
+            <thead>
+              <tr>
+                <th scope="col">记录 ID</th>
+                <th scope="col">记录时间</th>
+                <th scope="col">模型</th>
+                <th scope="col">方式</th>
+                <th scope="col">状态</th>
+                <th scope="col">失败原因</th>
+                <th scope="col">总延迟</th>
+                <th scope="col">TTFT</th>
+                <th scope="col">输入 Token</th>
+                <th scope="col">输出 Token</th>
+                <th scope="col">总 Token</th>
+                <th scope="col">会话 ID</th>
+                <th scope="col">请求 ID</th>
+              </tr>
+            </thead>
+            <tbody id="request-history-body"></tbody>
+          </table>
+        </div>
+        <button id="load-older-requests" type="button" hidden>加载更早记录</button>
+      </details>
+    </section>
+
+  </main>
+
+  <script>
+    const metricFilters = document.querySelector('#metric-filters');
+    const clearMetricFilters = document.querySelector('#clear-metric-filters');
+    const metricsStatus = document.querySelector('#metrics-status');
+    const metricsTable = document.querySelector('#metrics-table');
+    const metricsBody = document.querySelector('#metrics-body');
+    const requestHistoryStatus = document.querySelector('#request-history-status');
+    const requestHistoryTable = document.querySelector('#request-history-table');
+    const requestHistoryBody = document.querySelector('#request-history-body');
+    const loadOlderRequests = document.querySelector('#load-older-requests');
+    const historyPageSize = 10;
+    const requestStatusLabels = { success: '成功', error: '失败', cancelled: '取消' };
+
+    let metricsController = null;
+    let requestHistoryController = null;
+    let oldestRequestId = null;
+    let activeMetricFilters = new URLSearchParams();
+
+    function formatLatency(value) {
+      return value == null ? '—' : value.toFixed(1) + ' ms';
+    }
+
+    async function refreshMetrics() {
+      metricsController?.abort();
+      const request = new AbortController();
+      metricsController = request;
+      metricsStatus.textContent = '正在加载指标…';
+      try {
+        const response = await fetch('/metrics?' + activeMetricFilters, {
+          cache: 'no-store', signal: request.signal,
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const metrics = await response.json();
+        if (request.signal.aborted) return;
+        const rows = Object.entries(metrics).map(([name, stats]) => {
+          const row = document.createElement('tr');
+          const modelCell = document.createElement('th');
+          modelCell.scope = 'row';
+          modelCell.textContent = name;
+          row.append(modelCell);
+          for (const value of [
+            stats.total_requests, stats.success_requests, stats.error_requests,
+            stats.cancelled_requests, stats.input_tokens, stats.output_tokens, stats.total_tokens,
+            formatLatency(stats.avg_latency_ms), formatLatency(stats.avg_ttft_ms),
+          ]) {
+            row.insertCell().textContent = value;
+          }
+          return row;
+        });
+        metricsBody.replaceChildren(...rows);
+        metricsTable.hidden = rows.length === 0;
+        metricsStatus.textContent = rows.length ? '已更新' : emptyMetricsMessage();
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          metricsStatus.textContent = '指标加载失败，请检查 ID 后重新查询';
+        }
+      }
+    }
+
+    async function refreshRequestHistory(beforeId = null) {
+      requestHistoryController?.abort();
+      const request = new AbortController();
+      requestHistoryController = request;
+      const params = new URLSearchParams(activeMetricFilters);
+      params.set('limit', historyPageSize + 1);
+      if (beforeId !== null) params.set('before_id', beforeId);
+      loadOlderRequests.disabled = true;
+      requestHistoryStatus.textContent = '正在加载请求明细…';
+
+      try {
+        const response = await fetch('/metrics/requests?' + params, {
+          cache: 'no-store', signal: request.signal,
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const records = await response.json();
+        if (request.signal.aborted) return;
+
+        const page = records.slice(0, historyPageSize);
+        const rows = page.map(record => {
+          const row = document.createElement('tr');
+          const id = document.createElement('th');
+          id.scope = 'row';
+          id.textContent = '#' + record.id;
+          row.append(id);
+          row.insertCell().textContent = new Date(record.completed_at).toLocaleString();
+          row.insertCell().textContent = record.model;
+          row.insertCell().textContent = record.stream ? '流式' : '非流式';
+          const outcome = row.insertCell();
+          outcome.dataset.status = record.status;
+          outcome.textContent = requestStatusLabels[record.status] ?? record.status;
+          const reason = row.insertCell();
+          if (record.error_code) {
+            const code = document.createElement('code');
+            code.textContent = record.error_code;
+            reason.append(code);
+            if (record.error_message) reason.append(document.createElement('br'), record.error_message);
+          } else {
+            reason.textContent = record.status === 'error' ? '未记录' : '—';
+          }
+          for (const value of [
+            formatLatency(record.latency_ms), formatLatency(record.ttft_ms),
+            record.input_tokens, record.output_tokens, record.total_tokens,
+            record.conversation_id, record.request_id,
+          ]) {
+            row.insertCell().textContent = value ?? '—';
+          }
+          return row;
+        });
+        if (beforeId === null) requestHistoryBody.replaceChildren(...rows);
+        else requestHistoryBody.append(...rows);
+
+        const count = requestHistoryBody.rows.length;
+        requestHistoryTable.hidden = count === 0;
+        oldestRequestId = page.at(-1)?.id ?? beforeId;
+        loadOlderRequests.hidden = records.length <= historyPageSize;
+        requestHistoryStatus.textContent = count
+          ? `按入库顺序从新到旧，已显示 ${count} 条`
+          : emptyMetricsMessage();
+      } catch (error) {
+        if (!request.signal.aborted) {
+          requestHistoryStatus.textContent = '明细加载失败，请检查 ID 后重新查询';
+        }
+      } finally {
+        if (!request.signal.aborted) loadOlderRequests.disabled = false;
+      }
+    }
+
+    function refreshObservability(resetTables = false) {
+      if (resetTables) {
+        metricsBody.replaceChildren();
+        metricsTable.hidden = true;
+        requestHistoryBody.replaceChildren();
+        requestHistoryTable.hidden = true;
+        oldestRequestId = null;
+        loadOlderRequests.hidden = true;
+      }
+      void refreshMetrics();
+      void refreshRequestHistory();
+    }
+
+    function emptyMetricsMessage() {
+      return activeMetricFilters.size ? '没有匹配的调用记录' : '等待首次模型调用结束';
+    }
+
+    metricFilters.addEventListener('submit', event => {
+      event.preventDefault();
+      activeMetricFilters = new URLSearchParams();
+      for (const [name, value] of new FormData(metricFilters)) {
+        if (value.trim()) activeMetricFilters.set(name, value.trim());
+      }
+      refreshObservability(true);
+    });
+    clearMetricFilters.addEventListener('click', () => {
+      metricFilters.reset();
+      activeMetricFilters = new URLSearchParams();
+      refreshObservability(true);
+    });
+    loadOlderRequests.addEventListener('click', () => refreshRequestHistory(oldestRequestId));
+    refreshObservability();
+
+    const metricsUpdates = 'BroadcastChannel' in window
+      ? new BroadcastChannel('chat-metrics-updates')
+      : null;
+    metricsUpdates?.addEventListener('message', () => refreshObservability());
+  </script>
+</body>
+</html>

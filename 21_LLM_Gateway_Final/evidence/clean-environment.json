@@ -1,0 +1,97 @@
+{
+  "verified_at_utc": "2026-11-08T04:05:39.601912+00:00",
+  "python": "3.13.3",
+  "dependencies": {
+    "fastapi": "0.162.0",
+    "uvicorn": "0.54.0",
+    "anthropic": "0.125.0",
+    "openai": "2.54.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.2",
+    "anyio": "4.16.0",
+    "jsonschema": "4.26.0",
+    "python-dotenv": "1.2.4"
+  },
+  "offline": {
+    "passed": true,
+    "tests_run": 133,
+    "tests_passed": 133,
+    "tests_failed_or_skipped": 0,
+    "groups": [
+      {
+        "name": "Model routing and contracts",
+        "passed": true,
+        "tests": 9
+      },
+      {
+        "name": "Non-streaming and unified errors",
+        "passed": true,
+        "tests": 14
+      },
+      {
+        "name": "SSE and protocol resource cleanup",
+        "passed": true,
+        "tests": 29
+      },
+      {
+        "name": "JSON Object",
+        "passed": true,
+        "tests": 6
+      },
+      {
+        "name": "JSON Schema",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Streaming JSON and cancellation",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Prompt template rendering",
+        "passed": true,
+        "tests": 5
+      },
+      {
+        "name": "Prompt version lookup",
+        "passed": true,
+        "tests": 6
+      },
+      {
+        "name": "Token usage and cache accounting",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Metrics, latency, TTFT and disconnect",
+        "passed": true,
+        "tests": 12
+      },
+      {
+        "name": "Exponential backoff retry",
+        "passed": true,
+        "tests": 12
+      },
+      {
+        "name": "Per-model rate limiting",
+        "passed": true,
+        "tests": 9
+      },
+      {
+        "name": "Output anomaly monitoring",
+        "passed": true,
+        "tests": 4
+      },
+      {
+        "name": "Legacy adapter regression",
+        "passed": true,
+        "tests": 15
+      }
+    ]
+  },
+  "live": {
+    "executed": false,
+    "reason": "Use --live for real provider evidence"
+  }
+}

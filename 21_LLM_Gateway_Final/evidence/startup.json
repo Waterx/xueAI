@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": {
+    "/": 200,
+    "/observability": 200,
+    "/docs": 200,
+    "/openapi.json": 200,
+    "/metrics": 200,
+    "/metrics/requests": 200,
+    "invalid_chat": 422
+  },
+  "request_id_verified": true,
+  "workers": 1,
+  "real_provider_calls": 0
+}
