@@ -12,6 +12,33 @@ from output_monitor import OutputMonitor
 from schemas import LLMEvent, LLMResult
 
 
+def _prepare_request(
+    messages: list[dict[str, str]],
+    response_format: dict[str, Any] | None,
+) -> tuple[str, list[dict[str, str]], dict[str, Any]]:
+    systems = []
+    inputs = []
+    for message in messages:
+        role = message["role"]
+        if role == "system":
+            systems.append(message["content"])
+        elif role in ("user", "assistant"):
+            # Responses 的简易 message 格式支持字符串形式的历史内容。
+            inputs.append({"role": role, "content": message["content"]})
+        else:
+            raise ValueError(f"不支持的消息角色：{role!r}")
+    instructions = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
+
+    options = {}
+    if response_format is not None:
+        options["text"] = {"format": response_format}
+        if response_format["type"] == "json_schema":
+            instructions += "\n\n请只返回严格符合指定 JSON Schema 的合法 JSON，不要包含 Markdown 代码块。"
+        else:
+            instructions += "\n\n请只返回一个合法 JSON 对象，不要包含 Markdown 代码块。"
+    return instructions, inputs, options
+
+
 class ResponsesAdapter(BaseLLMAdapter):
     async def complete(
         self, messages: list[dict[str, str]], model: str,
@@ -20,25 +47,7 @@ class ResponsesAdapter(BaseLLMAdapter):
         key = os.environ.get("DEEPSEEK_API_KEY")
         if not key:
             raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
-        systems = []
-        inputs = []
-        for message in messages:
-            role = message["role"]
-            if role == "system":
-                systems.append(message["content"])
-            elif role in ("user", "assistant"):
-                inputs.append({"role": role, "content": message["content"]})
-            else:
-                raise ValueError(f"不支持的消息角色：{role!r}")
-        instructions = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
-
-        options = {}
-        if response_format is not None:
-            options["text"] = {"format": response_format}
-            if response_format["type"] == "json_schema":
-                instructions += "\n\n请只返回严格符合指定 JSON Schema 的合法 JSON，不要包含 Markdown 代码块。"
-            else:
-                instructions += "\n\n请只返回一个合法 JSON 对象，不要包含 Markdown 代码块。"
+        instructions, inputs, options = _prepare_request(messages, response_format)
 
         async with AsyncOpenAI(
             api_key=key, base_url="https://api.deepseek.com",
@@ -76,26 +85,7 @@ class ResponsesAdapter(BaseLLMAdapter):
         if not key:
             raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
 
-        systems = []
-        inputs = []
-        for message in messages:
-            role = message["role"]
-            if role == "system":
-                systems.append(message["content"])
-            elif role in ("user", "assistant"):
-                # Responses 的简易 message 格式支持字符串形式的历史内容。
-                inputs.append({"role": role, "content": message["content"]})
-            else:
-                raise ValueError(f"不支持的消息角色：{role!r}")
-        instructions = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
-        options = {}
-        if response_format is not None:
-            options["text"] = {"format": response_format}
-            if response_format["type"] == "json_schema":
-                instructions += "\n\n请只返回严格符合指定 JSON Schema 的合法 JSON，不要包含 Markdown 代码块。"
-            else:
-                instructions += "\n\n请只返回一个合法 JSON 对象，不要包含 Markdown 代码块。"
-
+        instructions, inputs, options = _prepare_request(messages, response_format)
         monitor = OutputMonitor(model)
 
         async with AsyncOpenAI(

@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import sqlite3
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
@@ -26,8 +27,9 @@ from errors import RateLimitError, GatewayError, StructuredOutputError, Upstream
 from metrics import MetricsStore, RequestMetrics, RequestStatus
 from model import complete_reply, stream_reply
 from prompt_manager import render_prompt, save_template
-from retry import with_retry, stream_with_retry
 from rate_limiter import RateLimiter
+from retry import with_retry, stream_with_retry
+from schemas import LLMResult
 
 app = FastAPI(title="Streaming and Non-streaming Demo")
 logger = logging.getLogger("uvicorn.error")
@@ -238,6 +240,118 @@ async def record_metrics(metrics: RequestMetrics) -> None:
     )
 
 
+async def complete_chat(
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    options: dict[str, Any],
+    request_id: str,
+    conversation_id: str,
+) -> LLMResult | JSONResponse:
+    started = perf_counter()
+    status: RequestStatus = "error"
+    usage = None
+    error = None
+    try:
+        result = await with_retry(
+            lambda: complete_reply(messages, model=model, **options)
+        )
+        usage = result.usage
+        status = "success"
+        return result
+    except asyncio.CancelledError:
+        status = "cancelled"
+        raise
+    except Exception as exc:
+        if isinstance(exc, StructuredOutputError):
+            usage = exc.usage
+        error = report_error(exc, request_id)
+        return error_response(error, request_id)
+    finally:
+        await record_metrics(RequestMetrics(
+            model=model, stream=False, status=status, usage=usage,
+            latency_ms=(perf_counter() - started) * 1000,
+            request_id=request_id, conversation_id=conversation_id,
+            error_code=error.code if status == "error" and error else None,
+            error_message=error.message if status == "error" and error else None,
+        ))
+
+
+async def generate_chat_events(
+    *,
+    request: Request,
+    model: str,
+    messages: list[dict[str, str]],
+    options: dict[str, Any],
+    request_id: str,
+    conversation_id: str,
+) -> AsyncGenerator[str, None]:
+    started = perf_counter()
+    status: RequestStatus = "error"
+    usage: dict[str, int] | None = None
+    ttft_ms = None
+    saw_done = False
+    done_reason = None
+    error = None
+    chunks = None
+
+    try:
+        yield sse("start", {"model": model})
+        chunks = stream_with_retry(
+            lambda: stream_reply(messages, model=model, **options)
+        )
+        async for event in chunks:
+            if event.type == "delta" and event.text and ttft_ms is None:
+                ttft_ms = (perf_counter() - started) * 1000
+            if event.type == "usage":
+                usage = (usage or {}) | event.usage
+            if await request.is_disconnected():
+                status = "cancelled"
+                return
+
+            if event.type == "delta":
+                yield sse("delta", {"text": event.text})
+            elif event.type == "done":
+                saw_done = True
+                done_reason = event.finish_reason
+            elif event.type == "usage":
+                yield sse("usage", event.usage)
+        if not saw_done:
+            raise UpstreamResponseError("模型流意外结束，缺少 done 事件")
+        status = "success"
+    except (asyncio.CancelledError, GeneratorExit):
+        status = "cancelled"
+        raise
+    except Exception as exc:
+        error = report_error(exc, request_id)
+    finally:
+        try:
+            if chunks is not None:
+                with CancelScope(shield=True):
+                    await chunks.aclose()
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
+        except Exception as exc:
+            cleanup_error = report_error(exc, request_id)
+            if status != "cancelled" and error is None:
+                status = "error"
+                error = cleanup_error
+        finally:
+            await record_metrics(RequestMetrics(
+                model=model, stream=True, status=status, usage=usage,
+                ttft_ms=ttft_ms, latency_ms=(perf_counter() - started) * 1000,
+                request_id=request_id, conversation_id=conversation_id,
+                error_code=error.code if status == "error" and error else None,
+                error_message=error.message if status == "error" and error else None,
+            ))
+
+    if error is not None:
+        yield sse("error", error.payload(request_id))
+    elif status == "success":
+        yield sse("done", {"reason": done_reason})
+
+
 @app.post("/chat")
 async def chat(body: ChatInput, request: Request):
     request_id = request.state.request_id
@@ -254,102 +368,23 @@ async def chat(body: ChatInput, request: Request):
         return error_response(exc, request_id, {"Retry-After": str(exc.retry_after)})
 
     if not body.stream:
-        started = perf_counter()
-        status: RequestStatus = "error"
-        usage = None
-        error = None
-        try:
-            result = await with_retry(
-                lambda: complete_reply(messages, model=body.model, **options)
-            )
-            usage = result.usage
-            status = "success"
-            return result
-        except asyncio.CancelledError:
-            status = "cancelled"
-            raise
-        except Exception as exc:
-            if isinstance(exc, StructuredOutputError):
-                usage = exc.usage
-            error = report_error(exc, request_id)
-            return error_response(error, request_id)
-        finally:
-            await record_metrics(RequestMetrics(
-                model=body.model, stream=False, status=status, usage=usage,
-                latency_ms=(perf_counter() - started) * 1000,
-                request_id=request_id, conversation_id=conversation_id,
-                error_code=error.code if status == "error" and error else None,
-                error_message=error.message if status == "error" and error else None,
-            ))
-
-    async def generate():
-        started = perf_counter()
-        status: RequestStatus = "error"
-        usage: dict[str, int] | None = None
-        ttft_ms = None
-        saw_done = False
-        done_reason = None
-        error = None
-        chunks = None
-
-        try:
-            yield sse("start", {"model": body.model})
-            chunks = stream_with_retry(
-                lambda: stream_reply(messages, model=body.model, **options)
-            )
-            async for event in chunks:
-                if event.type == "delta" and event.text and ttft_ms is None:
-                    ttft_ms = (perf_counter() - started) * 1000
-                if event.type == "usage":
-                    usage = (usage or {}) | event.usage
-                if await request.is_disconnected():
-                    status = "cancelled"
-                    return
-
-                if event.type == "delta":
-                    yield sse("delta", {"text": event.text})
-                elif event.type == "done":
-                    saw_done = True
-                    done_reason = event.finish_reason
-                elif event.type == "usage":
-                    yield sse("usage", event.usage)
-            if not saw_done:
-                raise UpstreamResponseError("模型流意外结束，缺少 done 事件")
-            status = "success"
-        except (asyncio.CancelledError, GeneratorExit):
-            status = "cancelled"
-            raise
-        except Exception as exc:
-            error = report_error(exc, request_id)
-        finally:
-            try:
-                if chunks is not None:
-                    with CancelScope(shield=True):
-                        await chunks.aclose()
-            except asyncio.CancelledError:
-                status = "cancelled"
-                raise
-            except Exception as exc:
-                cleanup_error = report_error(exc, request_id)
-                if status != "cancelled" and error is None:
-                    status = "error"
-                    error = cleanup_error
-            finally:
-                await record_metrics(RequestMetrics(
-                    model=body.model, stream=True, status=status, usage=usage,
-                    ttft_ms=ttft_ms, latency_ms=(perf_counter() - started) * 1000,
-                    request_id=request_id, conversation_id=conversation_id,
-                    error_code=error.code if status == "error" and error else None,
-                    error_message=error.message if status == "error" and error else None,
-                ))
-
-        if error is not None:
-            yield sse("error", error.payload(request_id))
-        elif status == "success":
-            yield sse("done", {"reason": done_reason})
+        return await complete_chat(
+            model=body.model,
+            messages=messages,
+            options=options,
+            request_id=request_id,
+            conversation_id=conversation_id,
+        )
 
     return ChatStreamingResponse(
-        generate(),
+        generate_chat_events(
+            request=request,
+            model=body.model,
+            messages=messages,
+            options=options,
+            request_id=request_id,
+            conversation_id=conversation_id,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

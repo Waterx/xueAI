@@ -235,6 +235,23 @@
       }
     }
 
+    async function readCompleteResponse(response, answerElement) {
+      if (!response.headers.get('content-type')?.includes('application/json')) {
+        throw new Error('服务器未返回 JSON 响应');
+      }
+      const result = await response.json();
+      log.textContent += 'HTTP 200 · JSON\n' + JSON.stringify(result, null, 2);
+      log.scrollTop = log.scrollHeight;
+      if (typeof result.content !== 'string' || typeof result.finish_reason !== 'string') {
+        throw new Error('服务器返回的结果格式异常');
+      }
+      answerElement.textContent = result.content;
+      conversation.scrollTop = conversation.scrollHeight;
+      if (result.finish_reason === 'length') {
+        throw new Error('回答达到长度上限，内容已截断');
+      }
+    }
+
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const question = prompt.value.trim();
@@ -290,20 +307,7 @@
           }
           await readSSE(response);
         } else {
-          if (!response.headers.get('content-type')?.includes('application/json')) {
-            throw new Error('服务器未返回 JSON 响应');
-          }
-          const result = await response.json();
-          log.textContent += 'HTTP 200 · JSON\n' + JSON.stringify(result, null, 2);
-          log.scrollTop = log.scrollHeight;
-          if (typeof result.content !== 'string' || typeof result.finish_reason !== 'string') {
-            throw new Error('服务器返回的结果格式异常');
-          }
-          answer.textContent = result.content;
-          conversation.scrollTop = conversation.scrollHeight;
-          if (result.finish_reason === 'length') {
-            throw new Error('回答达到长度上限，内容已截断');
-          }
+          await readCompleteResponse(response, answer);
         }
         if (!answer.textContent.trim()) throw new Error('模型返回了空回答');
         history.push({ role: 'user', content: question }, { role: 'assistant', content: answer.textContent });

@@ -13,6 +13,32 @@ from output_monitor import OutputMonitor
 from schemas import LLMEvent, LLMResult
 
 
+def _prepare_request(
+    messages: list[dict[str, str]],
+    response_format: dict[str, Any] | None,
+) -> tuple[str, list[dict[str, str]]]:
+    systems = []
+    inputs = []
+    for item in messages:
+        if item["role"] == "system":
+            systems.append(item["content"])
+        elif item["role"] in ("user", "assistant"):
+            inputs.append(dict(item))
+        else:
+            raise ValueError(f"不支持的消息角色：{item['role']!r}")
+    system = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
+    if response_format is not None:
+        if response_format["type"] == "json_schema":
+            system += (
+                "\n\n请只返回一个严格符合以下 JSON Schema 的合法 JSON 值，"
+                "不包含 Markdown 代码块、解释或其他文字。\nJSON Schema：\n"
+                + json.dumps(response_format["schema"], ensure_ascii=False)
+            )
+        else:
+            system += "\n\n请只返回一个合法 JSON 对象，不包含 Markdown 代码块、解释或其他文字。"
+    return system, inputs
+
+
 class AnthropicAdapter(BaseLLMAdapter):
     async def complete(
         self, messages: list[dict[str, str]], model: str,
@@ -21,25 +47,8 @@ class AnthropicAdapter(BaseLLMAdapter):
         key = os.environ.get("DEEPSEEK_API_KEY")
         if not key:
             raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
-        systems = []
-        inputs = []
-        for item in messages:
-            if item["role"] == "system":
-                systems.append(item["content"])
-            elif item["role"] in ("user", "assistant"):
-                inputs.append(dict(item))
-            else:
-                raise ValueError(f"不支持的消息角色：{item['role']!r}")
-        system = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
-        if response_format is not None:
-            if response_format["type"] == "json_schema":
-                system += (
-                    "\n\n请只返回一个严格符合以下 JSON Schema 的合法 JSON 值，"
-                    "不包含 Markdown 代码块、解释或其他文字。\nJSON Schema：\n"
-                    + json.dumps(response_format["schema"], ensure_ascii=False)
-                )
-            else:
-                system += "\n\n请只返回一个合法 JSON 对象，不包含 Markdown 代码块、解释或其他文字。"
+        system, inputs = _prepare_request(messages, response_format)
+
         async with AsyncAnthropic(
             api_key=key, base_url="https://api.deepseek.com/anthropic",
             timeout=60.0, max_retries=0,
@@ -74,25 +83,7 @@ class AnthropicAdapter(BaseLLMAdapter):
         key = os.environ.get("DEEPSEEK_API_KEY")
         if not key:
             raise RuntimeError("未设置 DEEPSEEK_API_KEY 环境变量")
-        systems = []
-        inputs = []
-        for item in messages:
-            if item["role"] == "system":
-                systems.append(item["content"])
-            elif item["role"] in ("user", "assistant"):
-                inputs.append(dict(item))
-            else:
-                raise ValueError(f"不支持的消息角色：{item['role']!r}")
-        system = "\n\n".join(systems) if systems else "你是一位友好的助手，请用中文简洁回答。"
-        if response_format is not None:
-            if response_format["type"] == "json_schema":
-                system += (
-                    "\n\n请只返回一个严格符合以下 JSON Schema 的合法 JSON 值，"
-                    "不包含 Markdown 代码块、解释或其他文字。\nJSON Schema：\n"
-                    + json.dumps(response_format["schema"], ensure_ascii=False)
-                )
-            else:
-                system += "\n\n请只返回一个合法 JSON 对象，不包含 Markdown 代码块、解释或其他文字。"
+        system, inputs = _prepare_request(messages, response_format)
         monitor = OutputMonitor(model)
 
         async with AsyncAnthropic(
