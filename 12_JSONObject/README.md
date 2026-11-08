@@ -21,7 +21,7 @@
 
 ```powershell
 ../.venv/Scripts/python.exe -m unittest discover -s tests -v
-../.venv/Scripts/python.exe -m uvicorn main:app --host 127.0.0.1 --port 8012 --env-file ../07_SSE_Adapter/.env
+../.venv/Scripts/python.exe -m uvicorn main:app --host 127.0.0.1 --port 8012 --env-file ../07_Adapter/.env
 ```
 
 也可自行设置 DEEPSEEK_API_KEY。依赖见 requirements.txt。沿用的网页支持普通文本和 SSE；本关 JSON 模式通过 HTTP 请求使用。
@@ -72,7 +72,7 @@ HTTP 422 表示参数不支持；502 表示结构化输出校验失败或模型�
 真实验收命令：
 
 ```powershell
-../.venv/Scripts/python.exe check_json.py --env-file ../07_SSE_Adapter/.env
+../.venv/Scripts/python.exe check_json.py --env-file ../07_Adapter/.env
 # 或针对运行中的服务：
 ../.venv/Scripts/python.exe check_json.py --url http://127.0.0.1:8012
 ```

@@ -1,6 +1,6 @@
 # 第 15 关：Prompt 模板与变量替换
 
-基于 `14_SSE_StreamingJSON`，新增内存模板管理。模板渲染在模型调用前完成，Flash / Pro 共用同一条解析路径，Adapter 保持原样。
+基于 `14_StreamingJSON`，新增内存模板管理。模板渲染在模型调用前完成，Flash / Pro 共用同一条解析路径，Adapter 保持原样。
 
 ## 启动
 

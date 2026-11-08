@@ -1,6 +1,6 @@
 # 06：有类型的内部事件
 
-基于 05_SSE_Model，模型层与 HTTP 层通过 `LLMEvent` 通信。
+基于 05_Model，模型层与 HTTP 层通过 `LLMEvent` 通信。
 
 - `schemas.py`：定义 `delta`、`done`、`usage` 三种事件，校验对应载荷。
 - `model.py`：`stream_reply(messages, model) -> AsyncIterator[LLMEvent]`，不拼接 SSE。
@@ -26,7 +26,7 @@
 在工作区根目录执行，沿用环境变量 `DEEPSEEK_API_KEY`：
 
 ```powershell
-cd 06_SSE_Events
+cd 06_Events
 ..\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8005
 ```
 

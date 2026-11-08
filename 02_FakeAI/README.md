@@ -1,13 +1,13 @@
 # 02：通过 SSE 接入伪 AI
 
-基于 `01_SSE_Intro`，把计数推送换成逐段生成的 AI 回答。不调用外部服务，无需 API Key；01 保留作为基础版本。
+基于 `01_Intro`，把计数推送换成逐段生成的 AI 回答。不调用外部服务，无需 API Key；01 保留作为基础版本。
 
 ## 启动
 
 在项目根目录执行，复用已有虚拟环境：
 
 ```bash
-cd 02_SSE_FakeAI
+cd 02_FakeAI
 ../.venv/bin/python -m uvicorn main:app --reload --port 8001
 ```
 

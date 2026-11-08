@@ -1,14 +1,14 @@
 # 04：SSE 多轮对话
 
-从 03_SSE_DeepSeek 升级，保留独立的 03 项目。继续使用 DeepSeek、POST /chat 和 start / delta / done / error 事件。
+从 03_DeepSeek 升级，保留独立的 03 项目。继续使用 DeepSeek、POST /chat 和 start / delta / done / error 事件。
 
 ## Windows 启动
 
 在 xueAI 目录执行：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r 04_SSE_MultiTurn/requirements.txt
-cd 04_SSE_MultiTurn
+.\.venv\Scripts\python.exe -m pip install -r 04_MultiTurn/requirements.txt
+cd 04_MultiTurn
 ..\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8003
 ```
 

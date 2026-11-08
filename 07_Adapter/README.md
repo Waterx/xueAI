@@ -1,6 +1,6 @@
 # 07：模型适配器抽象接口
 
-基于 06_SSE_Events，新增 `adapters/base.py`，定义继承 `ABC` 的
+基于 06_Events，新增 `adapters/base.py`，定义继承 `ABC` 的
 `BaseLLMAdapter`。抽象方法 `stream(messages, model)` 的返回类型为
 `AsyncIterator[LLMEvent]`，子类可用异步生成器实现。
 
@@ -14,7 +14,7 @@
 在工作区根目录执行（模拟上游，不消耗 API 额度）：
 
 ```sh
-cd 07_SSE_Adapter
+cd 07_Adapter
 ../.venv-mac/bin/python -m unittest discover -s tests -v
 ```
 
@@ -27,7 +27,7 @@ cd 07_SSE_Adapter
 当前 Mac 已配置工作区根目录的 `.venv-mac`，使用 Python 3.13.3，与 Windows 原环境一致。启动服务：
 
 ```sh
-cd 07_SSE_Adapter
+cd 07_Adapter
 ../.venv-mac/bin/python -m uvicorn main:app --env-file .env --host 127.0.0.1 --port 8005
 ```
 

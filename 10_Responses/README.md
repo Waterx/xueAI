@@ -38,8 +38,8 @@ usage 缺失时不编造统计；零值保留。仅转发回答正文增量，�
 从工作区根目录安装依赖：
 
 ```powershell
-.venv/Scripts/python.exe -m pip install -r 10_SSE_Responses/requirements.txt
-cd 10_SSE_Responses
+.venv/Scripts/python.exe -m pip install -r 10_Responses/requirements.txt
+cd 10_Responses
 ../.venv/Scripts/python.exe -m unittest discover -s tests -v
 ```
 

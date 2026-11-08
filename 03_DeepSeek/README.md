@@ -2,7 +2,7 @@
 
 教学讨论整理见 [03 学习笔记](03学习笔记.md)，涵盖异步语法、SDK 事件、snapshot、传输顺序与截断实验。
 
-沿用 02_SSE_FakeAI 的 POST /chat 和 start、delta、done、error 协议。
+沿用 02_FakeAI 的 POST /chat 和 start、delta、done、error 协议。
 后端从系统环境变量 DEEPSEEK_API_KEY 读取密钥，不写入前端或文件。
 
 ## Windows 启动
@@ -10,8 +10,8 @@
 在项目根目录执行：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r 03_SSE_DeepSeek/requirements.txt
-cd 03_SSE_DeepSeek
+.\.venv\Scripts\python.exe -m pip install -r 03_DeepSeek/requirements.txt
+cd 03_DeepSeek
 ..\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8002
 ```
 

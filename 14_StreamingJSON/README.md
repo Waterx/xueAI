@@ -1,6 +1,6 @@
 # 第 14 关：流式结构化输出（Streaming JSON）
 
-以 `13_SSE_JSONSchema` 为基线，支持 Flash / Pro 的 `json_object`、`json_schema` 流式及非流式输出。
+以 `13_JSONSchema` 为基线，支持 Flash / Pro 的 `json_object`、`json_schema` 流式及非流式输出。
 
 ## 启动
 

@@ -5,14 +5,14 @@
 ## 运行
 
 ```bash
-cd 01_SSE_Intro
+cd 01_Intro
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python -m uvicorn main:app --reload
 ```
 
-以上从项目根目录执行。若已在 `01_SSE_Intro` 内，可跳过 `cd`。
+以上从项目根目录执行。若已在 `01_Intro` 内，可跳过 `cd`。
 也可以复用根目录已有的虚拟环境：在本文件夹内执行 `../.venv/bin/python -m uvicorn main:app --reload`。
 
 打开 http://127.0.0.1:8000，点击「开始连接」。页面与浏览器 Console 每秒打印一条消息。「停止连接」主动关闭连接。

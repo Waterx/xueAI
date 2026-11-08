@@ -1,6 +1,6 @@
 # 09：实现 AnthropicAdapter
 
-基于 `08_SSE_Registry` 创建，通过 DeepSeek 的 Anthropic Messages 兼容接口，
+基于 `08_Registry` 创建，通过 DeepSeek 的 Anthropic Messages 兼容接口，
 学习第二种 API 协议如何转换为统一的 `LLMEvent`。
 
 `adapters/anthropic_adapter.py` 的 `AnthropicAdapter` 继承原有 `BaseLLMAdapter`，
@@ -46,8 +46,8 @@
 在工作区根目录执行：
 
 ```sh
-.venv-mac/bin/python -m pip install -r 09_SSE_Anthropic/requirements.txt
-cd 09_SSE_Anthropic
+.venv-mac/bin/python -m pip install -r 09_Anthropic/requirements.txt
+cd 09_Anthropic
 ../.venv-mac/bin/python -m unittest discover -s tests -v
 ```
 
@@ -68,7 +68,7 @@ cd 09_SSE_Anthropic
 在终端配置 `DEEPSEEK_API_KEY` 后执行：
 
 ```sh
-cd 09_SSE_Anthropic
+cd 09_Anthropic
 ../.venv-mac/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8005
 ```
 

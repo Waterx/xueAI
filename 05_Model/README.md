@@ -1,14 +1,14 @@
 # 05：请求级模型选择
 
-基于 04_SSE_MultiTurn，保留多轮对话、停止生成和新对话功能。03、04 保持原样。
+基于 04_MultiTurn，保留多轮对话、停止生成和新对话功能。03、04 保持原样。
 
 ## 启动
 
 在 xueAI 根目录执行：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r 05_SSE_Model/requirements.txt
-cd 05_SSE_Model
+.\.venv\Scripts\python.exe -m pip install -r 05_Model/requirements.txt
+cd 05_Model
 ..\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8004
 ```
 
@@ -59,6 +59,6 @@ data: {"model": "deepseek-flash"}
 
 模型层检测 `<|im_end|>`，即使标记分散在多个 delta 中也会命中。检测后关闭本次模型流，通过 SSE error 返回诊断编号，不发送 done，因此本轮不进入历史。之前已经发送的部分文本仍保留显示。
 
-在 `05_SSE_Model/logs/anomalies.log` 或后端终端搜索 `LLM_OUTPUT_ANOMALY`，可以找到时间、诊断编号、模型、上游 completion_id（若可用）、字符位置以及最近 16 个 delta（每个最多保留末尾 160 字符）。日志采用 UTF-8，每个文件上限约 2 MiB，保留 3 份轮转备份（anomalies.log.1 至 .3），首次异常时创建文件，路径不受启动目录影响。日志目录已加入 .gitignore。日志包含部分模型回答，不记录密钥和完整输入历史。这是 SDK 文本事件层的证据，不是原始 HTTP 响应抓包。
+在 `05_Model/logs/anomalies.log` 或后端终端搜索 `LLM_OUTPUT_ANOMALY`，可以找到时间、诊断编号、模型、上游 completion_id（若可用）、字符位置以及最近 16 个 delta（每个最多保留末尾 160 字符）。日志采用 UTF-8，每个文件上限约 2 MiB，保留 3 份轮转备份（anomalies.log.1 至 .3），首次异常时创建文件，路径不受启动目录影响。日志目录已加入 .gitignore。日志包含部分模型回答，不记录密钥和完整输入历史。这是 SDK 文本事件层的证据，不是原始 HTTP 响应抓包。
 
 当前是针对已观察到的标记的精确检测，不是通用内容质量判断。模型正常讨论该标记时也会触发，不能仅凭命中判定上游服务故障。修改代码后，如未启用 --reload，需要重新启动 05 服务。

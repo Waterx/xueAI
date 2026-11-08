@@ -1,6 +1,6 @@
 # 08：模型注册表与动态路由
 
-基于 `07_SSE_Adapter` 创建，新增 `adapters/registry.py`，保留原有 Adapter 接口、
+基于 `07_Adapter` 创建，新增 `adapters/registry.py`，保留原有 Adapter 接口、
 SSE 事件和资源关闭逻辑。
 
 `ADAPTERS` 保存模型名到 Adapter 类的映射，目前仅注册
@@ -24,7 +24,7 @@ SSE 事件和资源关闭逻辑。
 在工作区根目录执行（模拟上游，不消耗 API 额度）：
 
 ```sh
-cd 08_SSE_Registry
+cd 08_Registry
 ../.venv-mac/bin/python -m unittest discover -s tests -v
 ```
 
@@ -44,7 +44,7 @@ cd 08_SSE_Registry
 先在终端配置 `DEEPSEEK_API_KEY`，再执行：
 
 ```sh
-cd 08_SSE_Registry
+cd 08_Registry
 ../.venv-mac/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8005
 ```
 

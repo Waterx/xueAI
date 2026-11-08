@@ -22,7 +22,7 @@
 
 ```bash
 ../.venv-mac/bin/python -m pip install -r requirements.txt
-../.venv-mac/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8012 --env-file ../07_SSE_Adapter/.env
+../.venv-mac/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8012 --env-file ../07_Adapter/.env
 ```
 
 也可自行设置 DEEPSEEK_API_KEY。网页沿用普通文本 / SSE；结构化输出通过 HTTP 使用。
@@ -74,7 +74,7 @@ Pro 的 incomplete / failed 状态继续由 Adapter 拒绝。
 
 ```bash
 ../.venv-mac/bin/python -m unittest discover -s tests -q
-../.venv-mac/bin/python check_schema.py --env-file ../07_SSE_Adapter/.env --regression
+../.venv-mac/bin/python check_schema.py --env-file ../07_Adapter/.env --regression
 # 或对已运行服务验收：
 ../.venv-mac/bin/python check_schema.py --url http://127.0.0.1:8012 --regression
 ```
