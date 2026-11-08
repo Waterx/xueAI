@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 688" width="1000" height="688" role="img" aria-labelledby="title description">
+  <title id="title">xueAI LLM Gateway 系统架构</title>
+  <desc id="description">客户端通过 POST /chat 请求 FastAPI 网关，接收 SSE 或 JSON 响应。网关处理模板、限流、重试和指标，并通过注册表选择适配器，经 HTTPS 调用 DeepSeek Flash 或 Pro。</desc>
+  <defs>
+    <path id="down" d="M0 0v14m-4-4 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </defs>
+
+  <rect x="1" y="1" width="998" height="686" rx="24" fill="#f8fafc" stroke="#d8e1eb"/>
+  <g font-family="Segoe UI, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif" text-anchor="middle" fill="#142338">
+    <text x="500" y="38" fill="#496784" font-size="12" font-weight="700" letter-spacing="2.2">XUEAI / LLM GATEWAY</text>
+
+    <text x="500" y="74" font-size="25" font-weight="700">Client</text>
+    <text x="500" y="102" fill="#44576c" font-size="17">聊天页 · Web 应用 · 后端服务</text>
+    <use href="#down" x="478" y="116" color="#496784"/>
+    <use href="#down" transform="translate(522 130) rotate(180)" color="#496784"/>
+    <g fill="#496784" font-size="13" font-weight="600">
+      <text x="465" y="128" text-anchor="end">请求</text>
+      <text x="535" y="128" text-anchor="start">SSE / JSON</text>
+    </g>
+
+    <rect x="60" y="141" width="880" height="88" rx="14" fill="#ffffff" stroke="#d8e1eb"/>
+    <text x="500" y="176" font-size="23" font-weight="700">FastAPI Controller</text>
+    <text x="500" y="204" fill="#44576c" font-size="17">POST /chat · 请求校验 · 响应编码</text>
+    <use href="#down" x="500" y="237" color="#75899f"/>
+
+    <rect x="60" y="260" width="880" height="174" rx="14" fill="#eaf2fb" stroke="#cbddef"/>
+    <text x="500" y="294" fill="#1d4975" font-size="23" font-weight="700">网关编排</text>
+    <g fill="#ffffff" stroke="#cfdeed">
+      <rect x="80" y="309" width="414" height="35" rx="8"/>
+      <rect x="506" y="309" width="414" height="35" rx="8"/>
+      <rect x="80" y="352" width="414" height="35" rx="8"/>
+      <rect x="506" y="352" width="414" height="35" rx="8"/>
+    </g>
+    <g fill="#233f5c" font-size="16" font-weight="600">
+      <text x="287" y="332">Prompt 模板与版本 · SQLite</text>
+      <text x="713" y="332">按模型限流</text>
+      <text x="287" y="375">错误分类与重试</text>
+      <text x="713" y="375">Token · 延迟 · TTFT · SQLite</text>
+    </g>
+    <text x="500" y="414" fill="#44576c" font-size="16">统一模型调用 · 结构化输出校验</text>
+    <use href="#down" x="500" y="442" color="#75899f"/>
+
+    <rect x="60" y="465" width="880" height="191" rx="14" fill="#ffffff" stroke="#d8e1eb"/>
+    <text x="500" y="501" font-size="23" font-weight="700">Adapter Registry</text>
+    <text x="500" y="527" fill="#44576c" font-size="16">按 model 选择适配器</text>
+    <path d="M500 546v85" fill="none" stroke="#d8e1eb"/>
+    <g font-size="19" font-weight="700">
+      <text x="287" y="561">ResponsesAdapter</text>
+      <text x="713" y="561">AnthropicAdapter</text>
+    </g>
+    <g fill="#44576c" font-size="14">
+      <text x="287" y="584">OpenAI SDK · Responses</text>
+      <text x="713" y="584">Anthropic SDK · Messages</text>
+    </g>
+    <use href="#down" x="287" y="595" color="#496784"/>
+    <use href="#down" x="713" y="595" color="#496784"/>
+    <g fill="#496784" font-size="12" font-weight="600" text-anchor="start">
+      <text x="300" y="607">HTTPS</text>
+      <text x="726" y="607">HTTPS</text>
+    </g>
+    <g fill="#1d4975" font-size="17" font-weight="600">
+      <text x="287" y="633">DeepSeek V4 Pro</text>
+      <text x="713" y="633">DeepSeek Flash</text>
+    </g>
+  </g>
+</svg>

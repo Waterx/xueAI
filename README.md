@@ -4,6 +4,12 @@
 
 **使用完整项目，请从 [第 21 关最终版](21_LLM_Gateway_Final/README.md) 开始。** 第 01–20 关保留各阶段的实现，方便学习、独立运行和对比。
 
+## 系统架构
+
+![xueAI 网关架构。应用通过 POST /chat 请求网关，网关路由到 DeepSeek Flash 或 Pro，并通过 SSE 或 JSON 返回结果。Prompt 模板和调用指标保存在 SQLite。](docs/gateway-architecture.svg)
+
+应用通过同一个 `/chat` 接口选择模型和响应方式，DeepSeek API Key 由网关服务端持有。调用记录可在 `/observability` 查看，包含 Token、总延迟和首个非空文本增量的时间（TTFT）。
+
 ## 推荐入口
 
 | 目标 | 入口 |
